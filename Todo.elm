@@ -295,10 +295,7 @@ scene state (w,h) =
 
 -- manage the state of our application over time
 state : Signal State
-state = foldp step startingState actions.signal
-
-startingState : State
-startingState = Maybe.maybe emptyState identity getStorage
+state = foldp step emptyState actions.signal
 
 -- actions from user input
 actions : Input.Input Action
@@ -314,9 +311,3 @@ port focus =
         toSelector (EditingTask id _) = ("#todo-" ++ show id)
     in
         toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
-
--- interactions with localStorage to save app state
-port getStorage : Maybe State
-
-port setStorage : Signal State
-port setStorage = state
