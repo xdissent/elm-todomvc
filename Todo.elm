@@ -16,42 +16,29 @@ document for notes on structuring more complex GUIs with Elm:
 https://gist.github.com/evancz/2b2ba366cae1887fe621
 -}
 
-import String
+import Graphics.Input
+import Graphics.Input as Input
 import Html (..)
 import Html.Attributes (..)
 import Html.Events (..)
 import Html.Tags (..)
 import Html.Optimize.RefEq as Ref
+import List
 import Maybe
+import String
 import Window
 
-import Graphics.Input
-import Graphics.Input as Input
+import Task
 
 
 ---- MODEL ----
 
 -- The full application state of our todo app.
 type State =
-    { tasks      : [Task]
+    { tasks      : [Task.Task]
     , field      : String
     , uid        : Int
     , visibility : String
-    }
-
-type Task =
-    { description : String
-    , completed   : Bool
-    , editing     : Bool
-    , id          : Int
-    }
-
-newTask : String -> Int -> Task
-newTask desc id =
-    { description = desc
-    , completed = False 
-    , editing = False
-    , id = id
     }
 
 emptyState : State
@@ -65,45 +52,46 @@ emptyState =
 
 ---- UPDATE ----
 
--- A description of the kinds of actions that can be performed on the state of
--- the application. See the following post for more info on this pattern and
+-- A description of the kinds of updates that can change the state of the
+-- application. See the following post for more info on this pattern and
 -- some alternatives: https://gist.github.com/evancz/2b2ba366cae1887fe621
-data Action
+data Update
     = NoOp
     | UpdateField String
-    | EditingTask Int Bool
-    | UpdateTask Int String
     | Add
+    | Edit Int Task.Update
     | Delete Int
     | DeleteComplete
     | Check Int Bool
     | CheckAll Bool
     | ChangeVisibility String
 
--- How we step the state forward for any given action
-step : Action -> State -> State
-step action state =
-    case action of
-      NoOp -> state
 
-      Add ->
-          { state | uid <- state.uid + 1
-                  , field <- ""
-                  , tasks <- if String.isEmpty state.field
-                               then state.tasks
-                               else state.tasks ++ [newTask state.field state.uid]
-          }
+-- How we step the state forward for any given update
+step : Update -> State -> State
+step update state =
+    case update of
+      NoOp -> state
 
       UpdateField str ->
           { state | field <- str }
 
-      EditingTask id isEditing ->
-          let update t = if t.id == id then { t | editing <- isEditing } else t
-          in  { state | tasks <- map update state.tasks }
+      Add ->
+          let description = String.trim state.field in
+          if String.isEmpty description then state else
+              { state |
+                  uid <- state.uid + 1,
+                  field <- "",
+                  tasks <- state.tasks ++ [Task.init description state.uid]
+              }
 
-      UpdateTask id task ->
-          let update t = if t.id == id then { t | description <- task } else t
-          in  { state | tasks <- map update state.tasks }
+      Edit id taskUpdate ->
+          let update task =
+                  if task.id == id
+                      then Task.step taskUpdate task
+                      else Just task
+          in
+              { state | tasks <- List.filterMap update state.tasks }
 
       Delete id ->
           { state | tasks <- filter (\t -> t.id /= id) state.tasks }
@@ -155,13 +143,13 @@ taskEntry task =
           , autofocus True
           , value task
           , name "newTodo"
-          , on "input" getValue actions.handle UpdateField
-          , onEnter actions.handle Add
+          , on "input" getValue updates.handle UpdateField
+          , onEnter updates.handle Add
           ]
           []
       ]
 
-taskList : String -> [Task] -> Html
+taskList : String -> [Task.Task] -> Html
 taskList visibility tasks =
     let isVisible todo =
             case visibility of
@@ -182,7 +170,7 @@ taskList visibility tasks =
           , type' "checkbox"
           , name "toggle"
           , checked allCompleted
-          , onclick actions.handle (\_ -> CheckAll (not allCompleted))
+          , onclick updates.handle (\_ -> CheckAll (not allCompleted))
           ]
           []
       , label
@@ -190,13 +178,18 @@ taskList visibility tasks =
           [ text "Mark all as complete" ]
       , ul
           [ id "todo-list" ]
-          (map todoItem (filter isVisible tasks))
+          (map viewTask (filter isVisible tasks))
       ]
 
-todoItem : Task -> Html
-todoItem todo =
-    let className = (if todo.completed then "completed " else "") ++
-                    (if todo.editing   then "editing"    else "")
+
+viewTask : Task.Task -> Html
+viewTask task =
+    let className =
+            (if task.completed then "completed " else "") ++
+            (Maybe.maybe "" (always "editing") task.edits)
+
+        description =
+            Maybe.maybe task.description identity task.edits
     in
 
     li
@@ -206,32 +199,33 @@ todoItem todo =
           [ input
               [ class "toggle"
               , type' "checkbox"
-              , checked todo.completed
-              , onclick actions.handle (\_ -> Check todo.id (not todo.completed))
+              , checked task.completed
+              , onclick updates.handle (\_ -> Check task.id (not task.completed))
               ]
               []
           , label
-              [ ondblclick actions.handle (\_ -> EditingTask todo.id True) ]
-              [ text todo.description ]
+              [ ondblclick updates.handle (\_ -> Edit task.id Task.Focus) ]
+              [ text description ]
           , button
               [ class "destroy"
-              , onclick actions.handle (always (Delete todo.id))
+              , onclick updates.handle (always (Delete task.id))
               ]
               []
           ]
       , input
           [ class "edit"
-          , value todo.description
+          , value description
           , name "title"
-          , id ("todo-" ++ show todo.id)
-          , on "input" getValue actions.handle (UpdateTask todo.id)
-          , onblur actions.handle (EditingTask todo.id False)
-          , onEnter actions.handle (EditingTask todo.id False)
+          , id ("todo-" ++ show task.id)
+          , on "input" getValue updates.handle (\desc -> Edit task.id (Task.Edit desc))
+          , onblur updates.handle (Edit task.id Task.Cancel)
+          , onEnter updates.handle (Edit task.id Task.Commit)
           ]
           []
       ]
 
-controls : String -> [Task] -> Html
+
+controls : String -> [Task.Task] -> Html
 controls visibility tasks =
     let tasksCompleted = length (filter .completed tasks)
         tasksLeft = length tasks - tasksCompleted
@@ -258,7 +252,7 @@ controls visibility tasks =
           [ class "clear-completed"
           , id "clear-completed"
           , hidden (tasksCompleted == 0)
-          , onclick actions.handle (always DeleteComplete)
+          , onclick updates.handle (always DeleteComplete)
           ]
           [ text ("Clear completed (" ++ show tasksCompleted ++ ")") ]
       ]
@@ -267,7 +261,7 @@ visibilitySwap : String -> String -> String -> Html
 visibilitySwap uri visibility actualVisibility =
     let className = if visibility == actualVisibility then "selected" else "" in
     li
-      [ onclick actions.handle (always (ChangeVisibility visibility)) ]
+      [ onclick updates.handle (always (ChangeVisibility visibility)) ]
       [ a [ class className, href uri ] [ text visibility ] ]
 
 infoFooter : Html
@@ -287,27 +281,31 @@ infoFooter =
 
 -- wire the entire application together
 main : Signal Element
-main = lift2 scene state Window.dimensions
+main =
+    lift2 scene state Window.dimensions
+
+-- manage the state of our application over time
+state : Signal State
+state =
+    foldp step emptyState updates.signal
+
+-- updates from user input
+updates : Input.Input Update
+updates =
+    Input.input NoOp
 
 scene : State -> (Int,Int) -> Element
 scene state (w,h) =
     container w h midTop (toElement 550 h (view state))
 
--- manage the state of our application over time
-state : Signal State
-state = foldp step emptyState actions.signal
-
--- actions from user input
-actions : Input.Input Action
-actions = Input.input NoOp
 
 port focus : Signal String
 port focus =
     let needsFocus act =
             case act of
-              EditingTask id bool -> bool
+              Edit id (Task.Focus) -> True
               _ -> False
 
-        toSelector (EditingTask id _) = ("#todo-" ++ show id)
+        toSelector (Edit id _) = ("#todo-" ++ show id)
     in
-        toSelector <~ keepIf needsFocus (EditingTask 0 True) actions.signal
+        toSelector <~ keepIf needsFocus (Edit 0 Task.Focus) updates.signal
