@@ -66,8 +66,8 @@ type Action
 
 
 -- How we step the state forward for any given action
-step : Action -> Model -> Model
-step action state =
+update : Action -> Model -> Model
+update action state =
     case action of
       NoOp -> state
 
@@ -84,17 +84,17 @@ step action state =
               }
 
       UpdateTask (id, taskAction) ->
-          let stepTask t =
+          let updateTask t =
                 if t.id == id then Task.update taskAction t else Just t
           in
-              { state | tasks <- List.filterMap stepTask state.tasks }
+              { state | tasks <- List.filterMap updateTask state.tasks }
 
       DeleteComplete ->
           { state | tasks <- List.filter (not << .completed) state.tasks }
 
       CheckAll bool ->
-          let stepTask t = { t | completed <- bool }
-          in  { state | tasks <- List.map stepTask state.tasks }
+          let updateTask t = { t | completed <- bool }
+          in  { state | tasks <- List.map updateTask state.tasks }
 
       ChangeVisibility visibility ->
           { state | visibility <- visibility }
@@ -230,7 +230,7 @@ scene model (w,h) =
 
 -- manage the model of our application over time
 model : Signal Model
-model = Signal.foldp step empty (Signal.subscribe actions)
+model = Signal.foldp update empty (Signal.subscribe actions)
 
 -- actions from user input
 actions : Signal.Channel Action
