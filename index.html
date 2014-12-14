@@ -15,7 +15,6 @@
 var todomvc = Elm.fullscreen(Elm.Todo);
 todomvc.ports.focus.subscribe(function(id) {
     setTimeout(function() {
-        console.log(id);
         if (id === null) {
             return;
         }
