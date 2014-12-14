@@ -13,11 +13,15 @@
 
 <script type="text/javascript">
 var todomvc = Elm.fullscreen(Elm.Todo);
-todomvc.ports.focus.subscribe(function(selector) {
+todomvc.ports.focus.subscribe(function(id) {
     setTimeout(function() {
-        var nodes = document.querySelectorAll(selector);
-        if (nodes.length === 1 && document.activeElement !== nodes[0]) {
-            nodes[0].focus();
+        console.log(id);
+        if (id === null) {
+            return;
+        }
+        var node = document.getElementById("todo-" + id);
+        if (document.activeElement !== node) {
+            node.focus();
         }
     }, 50);
 });

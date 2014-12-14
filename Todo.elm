@@ -239,18 +239,11 @@ actions = Signal.channel NoOp
 taskActions : LC.LocalChannel (Int, Task.Action)
 taskActions = LC.create UpdateTask actions
 
-port focus : Signal String
+port focus : Signal (Maybe Int)
 port focus =
-    Signal.constant ""
-{--
-    let needsFocus act =
-            case act of
-              UpdateTask _ -> True
-              _ -> False
-
-        toSelector (UpdateTask (id, _)) = ("#todo-" ++ toString id)
+    let toSelector action =
+            case action of
+              UpdateTask (id, Task.Focus) -> Just id
+              _ -> Nothing
     in
-        Signal.subscribe actions
-          |> Signal.keepIf needsFocus NoOp
-          |> Signal.map toSelector
---}
+        Signal.map toSelector (Signal.subscribe actions)
