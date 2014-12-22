@@ -113,7 +113,7 @@ view channel task =
           , name "title"
           , id ("todo-" ++ toString task.id)
           , on "input" targetValue (\desc -> LC.send channel (task.id, Edit desc))
-          , onBlur (LC.send channel (task.id, Cancel))
+          , onBlur (LC.send channel (task.id, Commit))
           , onFinish
               (LC.send channel (task.id, Commit))
               (LC.send channel (task.id, Cancel))
