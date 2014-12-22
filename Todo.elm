@@ -41,8 +41,8 @@ type alias Model =
     }
 
 
-empty : Model
-empty =
+emptyModel : Model
+emptyModel =
     { tasks = []
     , visibility = "All"
     , field = ""
@@ -234,7 +234,20 @@ scene model (w,h) =
 -- manage the model of our application over time
 model : Signal Model
 model =
-    Signal.foldp update (Maybe.withDefault empty savedModel) (Signal.subscribe actions)
+    Signal.foldp update initialModel allActions
+
+
+initialModel : Model
+initialModel =
+    Maybe.withDefault emptyModel savedModel
+
+
+allActions : Signal Action
+allActions =
+    Signal.merge
+      (Signal.subscribe actions)
+      (Signal.map ChangeVisibility route)
+
 
 -- interactions with localStorage
 port savedModel : Maybe Model
@@ -242,6 +255,8 @@ port savedModel : Maybe Model
 port save : Signal Model
 port save = model
 
+-- routing
+port route : Signal String
 
 -- actions from user input
 actions : Signal.Channel Action

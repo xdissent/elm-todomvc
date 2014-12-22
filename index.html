@@ -15,12 +15,30 @@
 var result = localStorage.getItem('elm-todo-model');
 var savedModel = result ? JSON.parse(result) : null;
 
-var todomvc = Elm.fullscreen(Elm.Todo, { savedModel: savedModel });
+var todomvc = Elm.fullscreen(Elm.Todo, {
+    savedModel: savedModel,
+    route: getRoute()
+});
 
 todomvc.ports.save.subscribe(function(model) {
     localStorage.setItem('elm-todo-model', JSON.stringify(model));
 });
 
+// Routing
+window.addEventListener('popstate', function() {
+    todomvc.ports.route.send(getRoute());
+}, false);
+
+function getRoute() {
+    var hash = location.href.split('#')[1] || '';
+    var route = hash.replace('/', '');
+    if (['all','active','completed'].indexOf(route) >= 0) {
+        return route[0].toUpperCase() + route.substr(1);
+    }
+    return 'All';
+}
+
+// Setting focus manually
 todomvc.ports.focus.subscribe(function(id) {
     setTimeout(function() {
         if (id === null) {
