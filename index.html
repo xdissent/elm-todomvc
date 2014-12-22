@@ -12,7 +12,15 @@
 </body>
 
 <script type="text/javascript">
-var todomvc = Elm.fullscreen(Elm.Todo);
+var result = localStorage.getItem('elm-todo-model');
+var savedModel = result ? JSON.parse(result) : null;
+
+var todomvc = Elm.fullscreen(Elm.Todo, { savedModel: savedModel });
+
+todomvc.ports.save.subscribe(function(model) {
+    localStorage.setItem('elm-todo-model', JSON.stringify(model));
+});
+
 todomvc.ports.focus.subscribe(function(id) {
     setTimeout(function() {
         if (id === null) {

@@ -222,15 +222,26 @@ infoFooter =
 
 -- wire the entire application together
 main : Signal Element
-main = Signal.map2 scene model Window.dimensions
+main =
+    Signal.map2 scene model Window.dimensions
+
 
 scene : Model -> (Int,Int) -> Element
 scene model (w,h) =
     container w h midTop (toElement 550 h (view model))
 
+
 -- manage the model of our application over time
 model : Signal Model
-model = Signal.foldp update empty (Signal.subscribe actions)
+model =
+    Signal.foldp update (Maybe.withDefault empty savedModel) (Signal.subscribe actions)
+
+-- interactions with localStorage
+port savedModel : Maybe Model
+
+port save : Signal Model
+port save = model
+
 
 -- actions from user input
 actions : Signal.Channel Action
