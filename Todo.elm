@@ -129,7 +129,7 @@ taskEntry task =
           , value task
           , name "newTodo"
           , on "input" targetValue (Signal.send actions << UpdateField)
-          , Task.onEnter (Signal.send actions Add)
+          , Task.onFinish (Signal.send actions Add) (Signal.send actions NoOp)
           ]
           []
       ]

@@ -55,7 +55,7 @@ update update task =
       Commit ->
           case task.edits of
             Nothing ->
-                Nothing
+                Just task
 
             Just rawDescription ->
                 let description = String.trim rawDescription in
@@ -63,7 +63,7 @@ update update task =
                     Just
                       { task |
                           edits <- Nothing,
-                          description <- String.trim description
+                          description <- description
                       }
 
       Completed bool ->
@@ -114,17 +114,20 @@ view channel task =
           , id ("todo-" ++ toString task.id)
           , on "input" targetValue (\desc -> LC.send channel (task.id, Edit desc))
           , onBlur (LC.send channel (task.id, Cancel))
-          , onEnter (LC.send channel (task.id, Commit))
+          , onFinish
+              (LC.send channel (task.id, Commit))
+              (LC.send channel (task.id, Cancel))
           ]
           []
       ]
 
-onEnter : Signal.Message -> Attribute
-onEnter message =
-    on "keydown"
-      (Json.customDecoder keyCode is13)
-      (always message)
 
-is13 : Int -> Result String ()
-is13 code =
-  if code == 13 then Ok () else Err "not the right key code"
+onFinish : Signal.Message -> Signal.Message -> Attribute
+onFinish enterMessage escapeMessage =
+  let select key =
+        case key of
+          13 -> Ok enterMessage
+          27 -> Ok escapeMessage
+          _ -> Err "Not a 'finish' key, such as ENTER or ESCAPE"
+  in
+      on "keydown" (Json.customDecoder keyCode select) identity
