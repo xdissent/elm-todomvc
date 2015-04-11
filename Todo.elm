@@ -16,10 +16,10 @@ document for notes on structuring more complex GUIs with Elm:
 http://elm-lang.org/learn/Architecture.elm
 -}
 
-import Html (..)
-import Html.Attributes (..)
-import Html.Events (..)
-import Html.Lazy (lazy, lazy2)
+import Html exposing (..)
+import Html.Attributes exposing (..)
+import Html.Events exposing (..)
+import Html.Lazy exposing (lazy, lazy2)
 import Json.Decode as Json
 import List
 import Maybe
@@ -166,8 +166,8 @@ taskEntry task =
           , autofocus True
           , value task
           , name "newTodo"
-          , on "input" targetValue (Signal.send updates << UpdateField)
-          , onEnter (Signal.send updates Add)
+          , on "input" targetValue (Signal.message updates.address << UpdateField)
+          , onEnter (Signal.message updates.address Add)
           ]
           []
       ]
@@ -193,7 +193,7 @@ taskList visibility tasks =
           , type' "checkbox"
           , name "toggle"
           , checked allCompleted
-          , onClick (Signal.send updates (CheckAll (not allCompleted)))
+          , onClick (Signal.message updates.address (CheckAll (not allCompleted)))
           ]
           []
       , label
@@ -218,15 +218,15 @@ todoItem todo =
               [ class "toggle"
               , type' "checkbox"
               , checked todo.completed
-              , onClick (Signal.send updates (Check todo.id (not todo.completed)))
+              , onClick (Signal.message updates.address (Check todo.id (not todo.completed)))
               ]
               []
           , label
-              [ onDoubleClick (Signal.send updates (EditingTask todo.id True)) ]
+              [ onDoubleClick (Signal.message updates.address (EditingTask todo.id True)) ]
               [ text todo.description ]
           , button
               [ class "destroy"
-              , onClick (Signal.send updates (Delete todo.id))
+              , onClick (Signal.message updates.address (Delete todo.id))
               ]
               []
           ]
@@ -235,9 +235,9 @@ todoItem todo =
           , value todo.description
           , name "title"
           , id ("todo-" ++ toString todo.id)
-          , on "input" targetValue (Signal.send updates << UpdateTask todo.id)
-          , onBlur (Signal.send updates (EditingTask todo.id False))
-          , onEnter (Signal.send updates (EditingTask todo.id False))
+          , on "input" targetValue (Signal.message updates.address << UpdateTask todo.id)
+          , onBlur (Signal.message updates.address (EditingTask todo.id False))
+          , onEnter (Signal.message updates.address (EditingTask todo.id False))
           ]
           []
       ]
@@ -269,7 +269,7 @@ controls visibility tasks =
           [ class "clear-completed"
           , id "clear-completed"
           , hidden (tasksCompleted == 0)
-          , onClick (Signal.send updates DeleteComplete)
+          , onClick (Signal.message updates.address DeleteComplete)
           ]
           [ text ("Clear completed (" ++ toString tasksCompleted ++ ")") ]
       ]
@@ -278,7 +278,7 @@ visibilitySwap : String -> String -> String -> Html
 visibilitySwap uri visibility actualVisibility =
     let className = if visibility == actualVisibility then "selected" else "" in
     li
-      [ onClick (Signal.send updates (ChangeVisibility visibility)) ]
+      [ onClick (Signal.message updates.address (ChangeVisibility visibility)) ]
       [ a [ class className, href uri ] [ text visibility ] ]
 
 infoFooter : Html
@@ -302,15 +302,15 @@ main = Signal.map view model
 
 -- manage the model of our application over time
 model : Signal Model
-model = Signal.foldp update initialModel (Signal.subscribe updates)
+model = Signal.foldp update initialModel updates.signal
 
 initialModel : Model
 initialModel =
   Maybe.withDefault emptyModel getStorage
 
 -- updates from user input
-updates : Signal.Channel Action
-updates = Signal.channel NoOp
+updates : Signal.Mailbox Action
+updates = Signal.mailbox NoOp
 
 port focus : Signal String
 port focus =
@@ -321,8 +321,8 @@ port focus =
 
         toSelector (EditingTask id _) = ("#todo-" ++ toString id)
     in
-        Signal.subscribe updates
-          |> Signal.keepIf needsFocus (EditingTask 0 True)
+        updates.signal
+          |> Signal.filter needsFocus (EditingTask 0 True)
           |> Signal.map toSelector
 
 
